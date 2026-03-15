@@ -89,7 +89,6 @@ fun ProfileScreen(
                     item {
                         user.statistics?.let { stats ->
                             Spacer(Modifier.height(16.dp))
-                            // Level progress bar
                             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                                 Row(
                                     Modifier.fillMaxWidth(),
@@ -120,7 +119,6 @@ fun ProfileScreen(
                     item { Spacer(Modifier.height(16.dp)) }
                     item { ProfileStatsGrid(user = user) }
                     item { Spacer(Modifier.height(16.dp)) }
-                    // Grade breakdown
                     user.statistics?.gradeCounts?.let { grades ->
                         item {
                             GradeBreakdownCard(
@@ -130,7 +128,6 @@ fun ProfileScreen(
                         }
                     }
                     item { Spacer(Modifier.height(16.dp)) }
-                    // Score tabs
                     item {
                         val tabs = ProfileTab.values()
                         val selectedTab = uiState.selectedTab
@@ -177,7 +174,6 @@ fun ProfileScreen(
 @Composable
 private fun ProfileHeader(user: UserExtended) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Cover
         val coverUrl = user.cover?.url ?: user.coverUrl
         if (coverUrl != null) {
             AsyncImage(
@@ -242,7 +238,7 @@ private fun ProfileHeader(user: UserExtended) {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = OsuPink)
                     }
                     Text(
-                        text = "🌐 ${user.country?.name ?: user.countryCode}",
+                        text = user.country?.name ?: user.countryCode,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -260,7 +256,6 @@ private fun ProfileHeader(user: UserExtended) {
                 )
             }
 
-            // User groups / badges chips
             val groups = user.groups
             if (!groups.isNullOrEmpty()) {
                 Spacer(Modifier.height(10.dp))
@@ -307,7 +302,7 @@ private fun ProfileStatsGrid(user: UserExtended) {
         ) {
             Text("Statistics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem("PP", "${stats.pp.toInt():,}pp", OsuPink)
+                StatItem("PP", "${fmt(stats.pp.toInt())}pp", OsuPink)
                 StatItem("Global Rank", "#${stats.globalRank?.let { fmt(it) } ?: "-"}", OsuPurple)
                 StatItem("Country Rank", "#${stats.countryRank?.let { fmt(it) } ?: "-"}", Color(0xFF66DDFF))
             }
@@ -315,23 +310,24 @@ private fun ProfileStatsGrid(user: UserExtended) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 StatItem("Accuracy", "${"%.2f".format(stats.hitAccuracy)}%")
                 StatItem("Play Count", fmt(stats.playCount))
-                StatItem("Ranked Score", fmtL(stats.rankedScore).let {
-                    // abbreviate large numbers
+                StatItem(
+                    "Ranked Score",
                     when {
                         stats.rankedScore >= 1_000_000_000L -> "${"%.1f".format(stats.rankedScore / 1e9)}B"
                         stats.rankedScore >= 1_000_000L -> "${"%.1f".format(stats.rankedScore / 1e6)}M"
-                        else -> it
+                        else -> fmtL(stats.rankedScore)
                     }
-                })
+                )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 StatItem("Max Combo", "${fmt(stats.maximumCombo)}x")
-                StatItem("Total Hits", fmtL(stats.totalHits).let {
+                StatItem(
+                    "Total Hits",
                     when {
                         stats.totalHits >= 1_000_000L -> "${"%.1f".format(stats.totalHits / 1e6)}M"
-                        else -> it
+                        else -> fmtL(stats.totalHits)
                     }
-                })
+                )
                 StatItem("Replays Seen", fmt(stats.replaysWatchedByOthers))
             }
         }
