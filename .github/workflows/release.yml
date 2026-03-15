@@ -1,0 +1,133 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'           # triggers on tags like v1.0.0, v1.2.3
+  workflow_dispatch:   # lets you trigger manually from GitHub UI too
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 ─────────────────────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # ── 3. Gradle cache ────────────────────────────────────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # ── 4. Gradle wrapper permissions ─────────────────────────────────────
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # ── 5. Inject osu! credentials via build config ────────────────────────
+      #       Store these in GitHub repo Settings → Secrets → Actions
+      - name: Inject osu! OAuth credentials
+        run: |
+          sed -i 's|"YOUR_CLIENT_ID"|"${{ secrets.OSU_CLIENT_ID }}"|g' app/build.gradle.kts
+          sed -i 's|"YOUR_CLIENT_SECRET"|"${{ secrets.OSU_CLIENT_SECRET }}"|g' app/build.gradle.kts
+
+      # ── 6. Build DEBUG APK (always) ────────────────────────────────────────
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      # ── 7. Sign & build RELEASE APK ────────────────────────────────────────
+      #       Only runs on tag pushes or when release_type == release
+      - name: Decode keystore
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_type == 'release'
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
+
+      - name: Build release APK
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_type == 'release'
+        run: ./gradlew assembleRelease --stacktrace
+        env:
+          SIGNING_STORE_FILE: release.keystore
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      # ── 8. Rename APKs with version tag ────────────────────────────────────
+      - name: Rename APKs
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            mv app/build/outputs/apk/debug/app-debug.apk \
+               app/build/outputs/apk/debug/osu-client-${VERSION}-debug.apk
+          fi
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            mv app/build/outputs/apk/release/app-release.apk \
+               app/build/outputs/apk/release/osu-client-${VERSION}-release.apk
+          fi
+
+      # ── 9. Upload artifacts to workflow run ────────────────────────────────
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      - name: Upload release APK artifact
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      # ── 10. Create GitHub Release (only on version tags) ──────────────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: osu! client ${{ github.ref_name }}
+          body: |
+            ## osu! Android Client ${{ github.ref_name }}
+
+            ### Installation
+            1. Download the APK below
+            2. On your Android device, enable **Install from unknown sources**
+            3. Install the APK
+            4. Sign in with your osu! account
+
+            ### Changes
+            See commit history for changes in this release.
+
+            > **Debug APK** — for testing, not optimized  
+            > **Release APK** — minified + obfuscated, production ready
+          files: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
