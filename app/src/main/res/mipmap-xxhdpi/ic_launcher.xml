@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Replace with actual osu! logo SVG/vector -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF66AA"
+        android:pathData="M54,20 a34,34 0 1,1 0,68 a34,34 0 1,1 0,-68z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 a24,24 0 1,1 0,48 a24,24 0 1,1 0,-48z" />
+    <path
+        android:fillColor="#FF66AA"
+        android:pathData="M54,40 a14,14 0 1,1 0,28 a14,14 0 1,1 0,-28z" />
+</vector>
