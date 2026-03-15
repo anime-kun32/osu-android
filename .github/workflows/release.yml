@@ -22,45 +22,30 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # ── THE FIX: download wrapper jar via Python (always available) ────────
       - name: Ensure gradle-wrapper.jar exists
         run: |
           JAR="gradle/wrapper/gradle-wrapper.jar"
           MIN_SIZE=50000
-          if [ ! -f "$JAR" ] || [ $(stat -c%s "$JAR") -lt $MIN_SIZE ]; then
-            echo "⚠️  gradle-wrapper.jar missing or corrupt — downloading..."
-            mkdir -p gradle/wrapper
-            python3 - <<'PYEOF'
-import urllib.request, os, sys
-# Fetch directly from the official Gradle GitHub repo tag
-url = "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar"
-dest = "gradle/wrapper/gradle-wrapper.jar"
-os.makedirs("gradle/wrapper", exist_ok=True)
-try:
-    urllib.request.urlretrieve(url, dest)
-    size = os.path.getsize(dest)
-    print(f"✅ gradle-wrapper.jar downloaded ({size} bytes)")
-    if size < 50000:
-        print("ERROR: file too small, download may have failed")
-        sys.exit(1)
-except Exception as e:
-    print(f"ERROR: {e}")
-    sys.exit(1)
-PYEOF
+          mkdir -p gradle/wrapper
+          SIZE=0
+          if [ -f "$JAR" ]; then SIZE=$(stat -c%s "$JAR"); fi
+          if [ "$SIZE" -lt "$MIN_SIZE" ]; then
+            echo "gradle-wrapper.jar missing, downloading..."
+            python3 -c "import urllib.request,os,sys; url='https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar'; dest='gradle/wrapper/gradle-wrapper.jar'; os.makedirs('gradle/wrapper',exist_ok=True); urllib.request.urlretrieve(url,dest); size=os.path.getsize(dest); print('Downloaded '+str(size)+' bytes'); sys.exit(0 if size>50000 else 1)"
+            echo "Download complete"
           else
-            echo "✅ gradle-wrapper.jar OK ($(stat -c%s $JAR) bytes)"
+            echo "gradle-wrapper.jar OK, size $SIZE bytes"
           fi
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
         env:
-          # Suppress Gradle analytics noise
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
 
       - name: Upload APK artifact
