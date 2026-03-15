@@ -1,0 +1,64 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local configuration
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Keystore files
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Android generated files
+captures/
+.externalNativeBuild/
+.cxx/
+
+# NDK
+obj/
+*.so
+
+# Kotlin
+.kotlin/
+
+# Generated
+generated/
+out/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Gradle wrapper cache (optional)
+gradle/wrapper/gradle-wrapper.jar
+
+# Build outputs
+app/release/
+app/debug/
+
+# Android Studio navigation temp
+.navigation/
+
+# Database files
+*.db
+*.sqlite
+
+# Signing configs
+signing.properties
+
+# Android profiler
+*.hprof
