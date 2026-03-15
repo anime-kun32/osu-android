@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OsuClient" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.OsuClient.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#1a1a2e</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_osu_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.OsuClient</item>
+    </style>
+</resources>
