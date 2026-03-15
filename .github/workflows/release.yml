@@ -3,8 +3,8 @@ name: Build & Release APK
 on:
   push:
     tags:
-      - 'v*'           # triggers on tags like v1.0.0, v1.2.3
-  workflow_dispatch:   # lets you trigger manually from GitHub UI too
+      - 'v*'
+  workflow_dispatch:
     inputs:
       release_type:
         description: 'Release type'
@@ -44,23 +44,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # ── 4. Gradle wrapper permissions ─────────────────────────────────────
+      # ── 4. Install Gradle CLI so we can generate the wrapper if missing ────
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
+      # ── 5. Generate Gradle wrapper if not committed to repo ────────────────
+      - name: Generate Gradle wrapper
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, generating..."
+            gradle wrapper --gradle-version 8.9 --distribution-type bin
+          else
+            echo "gradlew already exists, skipping"
+          fi
+
+      # ── 6. Gradle wrapper permissions ─────────────────────────────────────
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # ── 5. Inject osu! credentials via build config ────────────────────────
-      #       Store these in GitHub repo Settings → Secrets → Actions
+      # ── 7. Inject osu! credentials ────────────────────────────────────────
       - name: Inject osu! OAuth credentials
         run: |
           sed -i 's|"YOUR_CLIENT_ID"|"${{ secrets.OSU_CLIENT_ID }}"|g' app/build.gradle.kts
           sed -i 's|"YOUR_CLIENT_SECRET"|"${{ secrets.OSU_CLIENT_SECRET }}"|g' app/build.gradle.kts
 
-      # ── 6. Build DEBUG APK (always) ────────────────────────────────────────
+      # ── 8. Build DEBUG APK ─────────────────────────────────────────────────
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      # ── 7. Sign & build RELEASE APK ────────────────────────────────────────
-      #       Only runs on tag pushes or when release_type == release
+      # ── 9. Sign & build RELEASE APK ────────────────────────────────────────
       - name: Decode keystore
         if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_type == 'release'
         run: |
@@ -75,7 +89,7 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      # ── 8. Rename APKs with version tag ────────────────────────────────────
+      # ── 10. Rename APKs ────────────────────────────────────────────────────
       - name: Rename APKs
         run: |
           VERSION="${{ github.ref_name }}"
@@ -88,7 +102,7 @@ jobs:
                app/build/outputs/apk/release/osu-client-${VERSION}-release.apk
           fi
 
-      # ── 9. Upload artifacts to workflow run ────────────────────────────────
+      # ── 11. Upload artifacts ───────────────────────────────────────────────
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -104,7 +118,7 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-      # ── 10. Create GitHub Release (only on version tags) ──────────────────
+      # ── 12. Create GitHub Release ──────────────────────────────────────────
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -122,7 +136,7 @@ jobs:
             ### Changes
             See commit history for changes in this release.
 
-            > **Debug APK** — for testing, not optimized  
+            > **Debug APK** — for testing, not optimized
             > **Release APK** — minified + obfuscated, production ready
           files: |
             app/build/outputs/apk/debug/*.apk
