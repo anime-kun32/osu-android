@@ -1,9 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+}
+
+// Load local signing config if available (for local dev)
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
 }
 
 android {
@@ -19,16 +27,36 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Inject your osu! OAuth credentials here or via local.properties
-        buildConfigField("String", "OSU_CLIENT_ID", "\"YOUR_CLIENT_ID\"")
-        buildConfigField("String", "OSU_CLIENT_SECRET", "\"YOUR_CLIENT_SECRET\"")
+        buildConfigField("String", "OSU_CLIENT_ID", "\"${System.getenv("OSU_CLIENT_ID") ?: localProps.getProperty("osu.client_id", "YOUR_CLIENT_ID")}\"")
+        buildConfigField("String", "OSU_CLIENT_SECRET", "\"${System.getenv("OSU_CLIENT_SECRET") ?: localProps.getProperty("osu.client_secret", "YOUR_CLIENT_SECRET")}\"")
         buildConfigField("String", "OSU_REDIRECT_URI", "\"osu://callback\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("SIGNING_STORE_FILE")
+                ?: localProps.getProperty("signing.store_file")
+            val keystorePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                ?: localProps.getProperty("signing.store_password")
+            val keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                ?: localProps.getProperty("signing.key_alias")
+            val keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+                ?: localProps.getProperty("signing.key_password")
+
+            if (keystoreFile != null) {
+                storeFile = file("$keystoreFile")
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -36,6 +64,8 @@ android {
         }
         debug {
             isDebuggable = true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
     }
 
@@ -62,7 +92,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.splashscreen)
 
-    // Compose BOM
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
@@ -71,15 +100,12 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     debugImplementation(libs.androidx.ui.tooling)
 
-    // Navigation
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // DI
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.moshi)
     implementation(libs.okhttp)
@@ -87,20 +113,11 @@ dependencies {
     implementation(libs.moshi)
     ksp(libs.moshi.codegen)
 
-    // Image loading
     implementation(libs.coil.compose)
-
-    // Storage
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.security.crypto)
-
-    // Browser (Custom Tabs for OAuth)
     implementation(libs.androidx.browser)
-
-    // Coroutines
     implementation(libs.kotlinx.coroutines.android)
-
-    // Paging
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
 }
