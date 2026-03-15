@@ -22,18 +22,31 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # ── THE FIX: regenerate wrapper jar if missing/corrupt ──────────────
-      - name: Validate or regenerate Gradle wrapper jar
+      # ── THE FIX: download wrapper jar via Python (always available) ────────
+      - name: Ensure gradle-wrapper.jar exists
         run: |
           JAR="gradle/wrapper/gradle-wrapper.jar"
-          MIN_SIZE=50000  # a real jar is ~60KB; 0 or tiny = corrupt
+          MIN_SIZE=50000
           if [ ! -f "$JAR" ] || [ $(stat -c%s "$JAR") -lt $MIN_SIZE ]; then
-            echo "⚠️  gradle-wrapper.jar missing or corrupt — regenerating..."
-            # Install gradle CLI to regenerate
-            curl -s "https://services.gradle.org/distributions/gradle-8.4-bin.zip" -o gradle-dist.zip
-            unzip -q gradle-dist.zip -d gradle-dist
-            ./gradle-dist/gradle-8.4/bin/gradle wrapper --gradle-version 8.4
-            echo "✅ gradle-wrapper.jar regenerated ($(stat -c%s $JAR) bytes)"
+            echo "⚠️  gradle-wrapper.jar missing or corrupt — downloading..."
+            mkdir -p gradle/wrapper
+            python3 - <<'PYEOF'
+import urllib.request, os, sys
+# Fetch directly from the official Gradle GitHub repo tag
+url = "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar"
+dest = "gradle/wrapper/gradle-wrapper.jar"
+os.makedirs("gradle/wrapper", exist_ok=True)
+try:
+    urllib.request.urlretrieve(url, dest)
+    size = os.path.getsize(dest)
+    print(f"✅ gradle-wrapper.jar downloaded ({size} bytes)")
+    if size < 50000:
+        print("ERROR: file too small, download may have failed")
+        sys.exit(1)
+except Exception as e:
+    print(f"ERROR: {e}")
+    sys.exit(1)
+PYEOF
           else
             echo "✅ gradle-wrapper.jar OK ($(stat -c%s $JAR) bytes)"
           fi
