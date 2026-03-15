@@ -131,7 +131,6 @@ fun UserSummaryCard(user: UserExtended, onClick: () -> Unit) {
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
     ) {
         Box {
-            // Cover image
             val coverUrl = user.cover?.url ?: user.coverUrl
             if (coverUrl != null) {
                 AsyncImage(
@@ -142,7 +141,6 @@ fun UserSummaryCard(user: UserExtended, onClick: () -> Unit) {
                         .height(120.dp),
                     contentScale = ContentScale.Crop,
                 )
-                // Gradient overlay
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -195,7 +193,7 @@ fun UserSummaryCard(user: UserExtended, onClick: () -> Unit) {
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "🌐 ${user.countryCode}",
+                                text = user.countryCode,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -224,7 +222,7 @@ fun UserSummaryCard(user: UserExtended, onClick: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        StatChip(label = "PP", value = "${stats.pp.toInt():,}pp")
+                        StatChip(label = "PP", value = "${formatNumber(stats.pp.toInt())}pp")
                         StatChip(label = "Global", value = "#${stats.globalRank?.let { formatNumber(it) } ?: "-"}")
                         StatChip(label = "Country", value = "#${stats.countryRank?.let { formatNumber(it) } ?: "-"}")
                         StatChip(label = "Acc", value = "${"%.2f".format(stats.hitAccuracy)}%")
@@ -347,7 +345,6 @@ fun ScoreCard(score: Score) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Beatmap thumbnail
             val coverUrl = score.beatmapset?.covers?.list
             if (coverUrl != null) {
                 AsyncImage(
