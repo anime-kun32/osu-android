@@ -1,83 +1,68 @@
 package com.osu.client.ui.screens.profile
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.osu.client.data.api.OsuApi
+import com.osu.client.data.model.BeatmapSet
 import com.osu.client.data.model.Score
 import com.osu.client.data.model.UserExtended
-import com.osu.client.data.repository.UserRepository
-import com.osu.client.util.ApiResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class ProfileTab(val label: String) {
+    Best("Top Plays"),
+    Recent("Recent"),
+    Firsts("Firsts"),
+    Favourites("Favourites"),
+}
+
 data class ProfileUiState(
+    val isLoading: Boolean = true,
+    val error: String? = null,
     val user: UserExtended? = null,
     val bestScores: List<Score> = emptyList(),
     val recentScores: List<Score> = emptyList(),
     val firstPlaces: List<Score> = emptyList(),
+    val favouriteMaps: List<BeatmapSet> = emptyList(),
     val selectedTab: ProfileTab = ProfileTab.Best,
-    val isLoading: Boolean = true,
-    val error: String? = null,
 )
-
-enum class ProfileTab(val label: String) {
-    Best("Best"),
-    Recent("Recent"),
-    Firsts("Firsts"),
-}
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
-    private val userRepository: UserRepository,
+    private val osuApi: OsuApi,
 ) : ViewModel() {
 
-    private val userId: Long? = savedStateHandle.get<String>("userId")?.toLongOrNull()
-
     private val _uiState = MutableStateFlow(ProfileUiState())
-    val uiState: StateFlow<ProfileUiState> = _uiState
+    val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
-    init {
-        loadProfile()
-    }
-
-    fun loadProfile() {
+    fun load(userId: Long?) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.value = ProfileUiState(isLoading = true)
+            try {
+                val user = if (userId == null) osuApi.getMe() else osuApi.getUser(userId)
 
-            val userResult = if (userId != null) {
-                userRepository.getUser(userId)
-            } else {
-                userRepository.getMe()
-            }
+                // Parallel load all score types + favourites
+                val bestDeferred      = async { runCatching { osuApi.getUserScores(user.id.toLong(), "best",    limit = 50) }.getOrElse { emptyList() } }
+                val recentDeferred    = async { runCatching { osuApi.getUserScores(user.id.toLong(), "recent",  limit = 20, includeFails = 0) }.getOrElse { emptyList() } }
+                val firstsDeferred    = async { runCatching { osuApi.getUserScores(user.id.toLong(), "firsts",  limit = 50) }.getOrElse { emptyList() } }
+                val favouriteDeferred = async { runCatching { osuApi.getUserBeatmapsets(user.id.toLong(), "favourite", limit = 50) }.getOrElse { emptyList() } }
 
-            when (userResult) {
-                is ApiResult.Success -> {
-                    val user = userResult.data
-                    _uiState.value = _uiState.value.copy(user = user, isLoading = false)
-
-                    // Load all score types in parallel
-                    val bestDeferred = async { userRepository.getUserBestScores(user.id) }
-                    val recentDeferred = async { userRepository.getUserRecentScores(user.id) }
-                    val firstsDeferred = async { userRepository.getUserFirstPlaces(user.id) }
-
-                    val best = bestDeferred.await()
-                    val recent = recentDeferred.await()
-                    val firsts = firstsDeferred.await()
-
-                    _uiState.value = _uiState.value.copy(
-                        bestScores = (best as? ApiResult.Success)?.data ?: emptyList(),
-                        recentScores = (recent as? ApiResult.Success)?.data ?: emptyList(),
-                        firstPlaces = (firsts as? ApiResult.Success)?.data ?: emptyList(),
-                    )
-                }
-                is ApiResult.Error -> _uiState.value =
-                    _uiState.value.copy(isLoading = false, error = userResult.message)
-                else -> {}
+                _uiState.value = ProfileUiState(
+                    isLoading     = false,
+                    user          = user,
+                    bestScores    = bestDeferred.await(),
+                    recentScores  = recentDeferred.await(),
+                    firstPlaces   = firstsDeferred.await(),
+                    favouriteMaps = favouriteDeferred.await(),
+                    selectedTab   = ProfileTab.Best,
+                )
+            } catch (e: Exception) {
+                _uiState.value = ProfileUiState(isLoading = false, error = e.message ?: "Failed to load profile")
             }
         }
     }

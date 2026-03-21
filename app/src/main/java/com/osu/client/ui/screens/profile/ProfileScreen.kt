@@ -1,31 +1,35 @@
 package com.osu.client.ui.screens.profile
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.*
+import androidx.compose.ui.draw.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.osu.client.data.model.BeatmapSet
+import com.osu.client.data.model.Score
 import com.osu.client.data.model.UserExtended
-import com.osu.client.ui.screens.home.ScoreCard
+import com.osu.client.ui.screens.home.ErrorState
+import com.osu.client.ui.screens.home.PulseLoader
+import com.osu.client.ui.screens.home.ScoreRow
+import com.osu.client.ui.screens.home.SectionLabel
 import com.osu.client.ui.theme.*
 import java.text.NumberFormat
 import java.util.Locale
@@ -33,136 +37,177 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    userId: Long?,
     onBack: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        uiState.user?.username ?: "Profile",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+    LaunchedEffect(userId) { viewModel.load(userId) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Surface0)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(350.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = 80.dp, y = (-80).dp)
+                .background(
+                    Brush.radialGradient(listOf(OsuPurple.copy(alpha = 0.07f), Color.Transparent)),
+                    CircleShape
+                )
+        )
+
+        when {
+            uiState.isLoading -> PulseLoader()
+            uiState.error != null -> ErrorState(uiState.error!!) { viewModel.load(userId) }
+            uiState.user != null -> ProfileContent(
+                uiState = uiState,
+                onBack  = onBack,
+                viewModel = viewModel,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProfileContent(
+    uiState: ProfileUiState,
+    onBack: () -> Unit,
+    viewModel: ProfileViewModel,
+) {
+    val user = uiState.user!!
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 40.dp),
+    ) {
+        // ── Cover + Avatar ──────────────────────────────────────────────────
+        item {
+            ProfileHero(user = user, onBack = onBack)
+        }
+
+        // ── Quick stats ─────────────────────────────────────────────────────
+        item {
+            Spacer(Modifier.height(4.dp))
+            ProfileStatsRow(user = user)
+        }
+
+        // ── Level progress ──────────────────────────────────────────────────
+        user.statistics?.let { stats ->
+            item {
+                Spacer(Modifier.height(12.dp))
+                LevelProgress(
+                    level    = stats.level.current,
+                    progress = stats.level.progress,
+                )
+            }
+        }
+
+        // ── Grade breakdown ─────────────────────────────────────────────────
+        user.statistics?.gradeCounts?.let { grades ->
+            item {
+                Spacer(Modifier.height(8.dp))
+                GradeBreakdownRow(grades = grades)
+            }
+        }
+
+        // ── Rank history graph ──────────────────────────────────────────────
+        val rankHistory = uiState.user.rankHistory?.data
+        if (!rankHistory.isNullOrEmpty()) {
+            item {
+                Spacer(Modifier.height(8.dp))
+                SectionLabel(title = "Rank History")
+                RankHistoryGraph(data = rankHistory)
+            }
+        }
+
+        // ── Score tabs ──────────────────────────────────────────────────────
+        item {
+            Spacer(Modifier.height(8.dp))
+            val tabs = ProfileTab.values()
+            ScrollableTabRow(
+                selectedTabIndex = tabs.indexOf(uiState.selectedTab),
+                containerColor   = Surface0,
+                contentColor     = OsuPink,
+                edgePadding      = 16.dp,
+                indicator        = { tabPositions ->
+                    val index = tabs.indexOf(uiState.selectedTab)
+                    if (index < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier
+                                .tabIndicatorOffset(tabPositions[index])
+                                .padding(horizontal = 16.dp),
+                            color = OsuPink,
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-    ) { paddingValues ->
-        when {
-            uiState.isLoading -> Box(
-                Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator(color = OsuPink) }
-
-            uiState.error != null -> Box(
-                Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center,
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) },
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.ErrorOutline, null, tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(12.dp))
-                    Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(12.dp))
-                    Button(onClick = { viewModel.loadProfile() }) { Text("Retry") }
+                tabs.forEach { tab ->
+                    Tab(
+                        selected = uiState.selectedTab == tab,
+                        onClick  = { viewModel.selectTab(tab) },
+                        text     = {
+                            Text(
+                                tab.label,
+                                fontWeight = if (uiState.selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        },
+                        selectedContentColor   = OsuPink,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
+        }
 
-            else -> {
-                val user = uiState.user ?: return@Scaffold
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentPadding = PaddingValues(bottom = 24.dp),
-                ) {
-                    item { ProfileHeader(user = user) }
-                    item {
-                        user.statistics?.let { stats ->
-                            Spacer(Modifier.height(16.dp))
-                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Text(
-                                        "Level ${stats.level.current}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        "${stats.level.progress}%",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = OsuPink,
-                                    )
-                                }
-                                Spacer(Modifier.height(4.dp))
-                                LinearProgressIndicator(
-                                    progress = { stats.level.progress / 100f },
-                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                                    color = OsuPink,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    strokeCap = StrokeCap.Round,
-                                )
-                            }
+        // ── Content by tab ──────────────────────────────────────────────────
+        when (uiState.selectedTab) {
+            ProfileTab.Best, ProfileTab.Recent, ProfileTab.Firsts -> {
+                val scores = when (uiState.selectedTab) {
+                    ProfileTab.Best   -> uiState.bestScores
+                    ProfileTab.Recent -> uiState.recentScores
+                    else              -> uiState.firstPlaces
+                }
+                if (scores.isEmpty()) {
+                    item { EmptyTabState() }
+                } else {
+                    itemsIndexed(scores) { index, score ->
+                        var visible by remember { mutableStateOf(false) }
+                        LaunchedEffect(uiState.selectedTab) {
+                            kotlinx.coroutines.delay(index * 55L)
+                            visible = true
                         }
-                    }
-                    item { Spacer(Modifier.height(16.dp)) }
-                    item { ProfileStatsGrid(user = user) }
-                    item { Spacer(Modifier.height(16.dp)) }
-                    user.statistics?.gradeCounts?.let { grades ->
-                        item {
-                            GradeBreakdownCard(
-                                ssh = grades.ssh, ss = grades.ss,
-                                sh = grades.sh, s = grades.s, a = grades.a,
-                            )
-                        }
-                    }
-                    item { Spacer(Modifier.height(16.dp)) }
-                    item {
-                        val tabs = ProfileTab.values()
-                        val selectedTab = uiState.selectedTab
-                        PrimaryTabRow(
-                            selectedTabIndex = tabs.indexOf(selectedTab),
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = OsuPink,
+                        AnimatedVisibility(
+                            visible = visible,
+                            enter   = fadeIn(tween(280)) + slideInHorizontally(tween(280)) { -20 },
                         ) {
-                            tabs.forEach { tab ->
-                                Tab(
-                                    selected = selectedTab == tab,
-                                    onClick = { viewModel.selectTab(tab) },
-                                    text = { Text(tab.label, fontWeight = FontWeight.SemiBold) },
-                                )
-                            }
+                            Spacer(Modifier.height(4.dp))
+                            ScoreRow(score = score)
                         }
                     }
-                    val scores = when (uiState.selectedTab) {
-                        ProfileTab.Best -> uiState.bestScores
-                        ProfileTab.Recent -> uiState.recentScores
-                        ProfileTab.Firsts -> uiState.firstPlaces
-                    }
-                    if (scores.isEmpty()) {
-                        item {
-                            Box(
-                                Modifier.fillMaxWidth().padding(32.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { Text("No scores yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+            ProfileTab.Favourites -> {
+                if (uiState.favouriteMaps.isEmpty()) {
+                    item { EmptyTabState() }
+                } else {
+                    itemsIndexed(uiState.favouriteMaps) { index, map ->
+                        var visible by remember { mutableStateOf(false) }
+                        LaunchedEffect(uiState.selectedTab) {
+                            kotlinx.coroutines.delay(index * 55L)
+                            visible = true
                         }
-                    } else {
-                        items(scores) { score ->
-                            Spacer(Modifier.height(8.dp))
-                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                ScoreCard(score = score)
-                            }
+                        AnimatedVisibility(
+                            visible = visible,
+                            enter   = fadeIn(tween(280)) + slideInHorizontally(tween(280)) { -20 },
+                        ) {
+                            Spacer(Modifier.height(4.dp))
+                            BeatmapRow(map = map)
                         }
                     }
                 }
@@ -171,222 +216,449 @@ fun ProfileScreen(
     }
 }
 
+// ── Profile Hero ──────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileHeader(user: UserExtended) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+private fun ProfileHero(user: UserExtended, onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp)
+    ) {
+        // Cover
         val coverUrl = user.cover?.url ?: user.coverUrl
-        if (coverUrl != null) {
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = "Cover",
-                modifier = Modifier.fillMaxWidth().height(180.dp),
-                contentScale = ContentScale.Crop,
-            )
+        AsyncImage(
+            model = coverUrl,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.3f),
+                            0.5f to Color.Black.copy(alpha = 0.6f),
+                            1.0f to Surface0,
+                        )
+                    )
+                )
+        )
+
+        // Glow line
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.horizontalGradient(listOf(Color.Transparent, OsuPink.copy(0.6f), Color.Transparent))
+                )
+        )
+
+        // Back button
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .padding(8.dp)
+                .align(Alignment.TopStart)
+                .background(Color.Black.copy(alpha = 0.4f), CircleShape),
+        ) {
+            Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
+        }
+
+        // Avatar + info
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Box {
+                AsyncImage(
+                    model = user.avatarUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(72.dp)
+                        .border(
+                            2.dp,
+                            Brush.sweepGradient(listOf(OsuPink, OsuPurple, OsuPink)),
+                            CircleShape,
+                        )
+                        .padding(2.dp)
+                        .clip(CircleShape)
+                        .background(Surface2),
+                    contentScale = ContentScale.Crop,
+                )
+                if (user.isOnline) {
+                    Box(
+                        Modifier
+                            .size(15.dp)
+                            .align(Alignment.BottomEnd)
+                            .background(Color(0xFF00DD88), CircleShape)
+                            .border(2.dp, Surface0, CircleShape)
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        user.username,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                    )
+                    if (user.isSupporter) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Filled.Favorite, null, tint = OsuPink, modifier = Modifier.size(16.dp))
+                    }
+                }
+                user.title?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = OsuPink, fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    user.country?.name ?: user.countryCode,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.55f),
+                )
+            }
+        }
+    }
+}
+
+// ── Stats row ─────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ProfileStatsRow(user: UserExtended) {
+    val stats = user.statistics ?: return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        StatPill(Modifier.weight(1f), label = "PP",      value = "${fmt(stats.pp.toInt())}pp", color = OsuPink)
+        StatPill(Modifier.weight(1f), label = "Global",  value = "#${fmtR(stats.globalRank)}",  color = OsuGold)
+        StatPill(Modifier.weight(1f), label = "Country", value = "#${fmtR(stats.countryRank)}", color = OsuBlue)
+        StatPill(Modifier.weight(1f), label = "Acc",     value = "${"%.1f".format(stats.hitAccuracy)}%", color = OsuPurple)
+    }
+}
+
+@Composable
+private fun StatPill(modifier: Modifier, label: String, value: String, color: Color) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = Surface2,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+// ── Level progress ────────────────────────────────────────────────────────────
+
+@Composable
+private fun LevelProgress(level: Int, progress: Int) {
+    val animProgress by animateFloatAsState(
+        targetValue = progress / 100f,
+        animationSpec = tween(800, easing = EaseOutCubic),
+        label = "level_progress"
+    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = Surface2,
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Level $level",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "$progress%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = OsuPink,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background),
-                            startY = 80f,
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(Surface3)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(animProgress)
+                        .fillMaxHeight()
+                        .background(
+                            Brush.horizontalGradient(listOf(OsuPink, OsuPurple)),
+                            CircleShape
                         )
-                    )
+                )
+            }
+        }
+    }
+}
+
+// ── Grade breakdown ───────────────────────────────────────────────────────────
+
+@Composable
+private fun GradeBreakdownRow(grades: com.osu.client.data.model.GradeCounts) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = Surface2,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            GradePill("SS+", grades.ssh, GradeSSH)
+            GradePill("SS",  grades.ss,  GradeSS)
+            GradePill("S+",  grades.sh,  GradeSH)
+            GradePill("S",   grades.s,   GradeS)
+            GradePill("A",   grades.a,   GradeA)
+        }
+    }
+}
+
+@Composable
+private fun GradePill(label: String, count: Int, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(
+            modifier = Modifier
+                .background(color.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = color)
+        }
+        Text(fmt(count), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+// ── Rank history graph ────────────────────────────────────────────────────────
+
+@Composable
+private fun RankHistoryGraph(data: List<Int>) {
+    val animProgress by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(1200, easing = EaseOutCubic),
+        label = "graph_draw",
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Surface2,
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Rank Progress",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-        } else {
-            Box(
+            Spacer(Modifier.height(12.dp))
+
+            val minRank  = data.min().toFloat()
+            val maxRank  = data.max().toFloat()
+            val range    = (maxRank - minRank).coerceAtLeast(1f)
+
+            Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)
-                    .background(
-                        Brush.horizontalGradient(listOf(Color(0xFF2A0A1E), Color(0xFF1A0A2E)))
-                    )
-            )
-        }
+            ) {
+                val w = size.width
+                val h = size.height
+                val stepX = w / (data.size - 1).coerceAtLeast(1)
+                val pointsToDraw = (data.size * animProgress).toInt().coerceAtLeast(2)
 
-        Column(
+                val path = Path()
+                val fillPath = Path()
+
+                data.take(pointsToDraw).forEachIndexed { i, rank ->
+                    // Invert: lower rank number = higher on chart
+                    val x = i * stepX
+                    val y = h * (rank - minRank) / range
+                    if (i == 0) {
+                        path.moveTo(x, y)
+                        fillPath.moveTo(x, h)
+                        fillPath.lineTo(x, y)
+                    } else {
+                        // Cubic bezier for smooth curve
+                        val prevX = (i - 1) * stepX
+                        val prevY = h * (data[i - 1] - minRank) / range
+                        val cpX = (prevX + x) / 2f
+                        path.cubicTo(cpX, prevY, cpX, y, x, y)
+                        fillPath.cubicTo(cpX, prevY, cpX, y, x, y)
+                    }
+                }
+
+                // Fill gradient under line
+                val lastIndex = pointsToDraw - 1
+                val lastX = lastIndex * stepX
+                fillPath.lineTo(lastX, h)
+                fillPath.close()
+
+                drawPath(
+                    path  = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(OsuPink.copy(alpha = 0.25f), Color.Transparent),
+                        startY = 0f,
+                        endY   = h,
+                    ),
+                )
+
+                // Draw line
+                drawPath(
+                    path   = path,
+                    color  = OsuPink,
+                    style  = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                )
+
+                // Dots at start and end
+                if (pointsToDraw >= 2) {
+                    val endX = (pointsToDraw - 1) * stepX
+                    val endY = h * (data[pointsToDraw - 1] - minRank) / range
+                    drawCircle(color = OsuPink, radius = 5f, center = Offset(endX, endY))
+                    drawCircle(color = Surface0, radius = 3f, center = Offset(endX, endY))
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("90 days ago", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val latest = data.lastOrNull()
+                Text(
+                    text = latest?.let { "#${fmt(it)}" } ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OsuPink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text("now", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+// ── Beatmap row ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun BeatmapRow(map: BeatmapSet) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = Surface1,
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.05f)),
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(top = if (coverUrl != null) 120.dp else 60.dp),
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                AsyncImage(
-                    model = user.avatarUrl,
-                    contentDescription = "Avatar",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = user.username,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        if (user.isSupporter) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(Icons.Filled.Favorite, null, tint = OsuPink, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    user.title?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = OsuPink)
-                    }
-                    Text(
-                        text = user.country?.name ?: user.countryCode,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            user.bio?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(12.dp))
+            AsyncImage(
+                model = map.covers?.list ?: map.covers?.cover,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Surface3),
+                contentScale = ContentScale.Crop,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = it,
+                    map.title,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    map.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "by ${map.creator}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OsuPink.copy(alpha = 0.7f),
+                )
             }
-
-            val groups = user.groups
-            if (!groups.isNullOrEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    groups.take(4).forEach { group ->
-                        val chipColor = group.colour?.let { parseColor(it) } ?: OsuPink
-                        SuggestionChip(
-                            onClick = {},
-                            label = {
-                                Text(
-                                    group.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = chipColor,
-                                )
-                            },
-                            border = SuggestionChipDefaults.suggestionChipBorder(
-                                enabled = true,
-                                borderColor = chipColor.copy(alpha = 0.5f),
-                            ),
-                        )
-                    }
+            Column(horizontalAlignment = Alignment.End) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = OsuPink.copy(alpha = 0.15f),
+                ) {
+                    Text(
+                        map.status.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OsuPink,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                    )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileStatsGrid(user: UserExtended) {
-    val stats = user.statistics ?: return
-    val fmt = { n: Int -> NumberFormat.getNumberInstance(Locale.US).format(n) }
-    val fmtL = { n: Long -> NumberFormat.getNumberInstance(Locale.US).format(n) }
-
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text("Statistics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem("PP", "${fmt(stats.pp.toInt())}pp", OsuPink)
-                StatItem("Global Rank", "#${stats.globalRank?.let { fmt(it) } ?: "-"}", OsuPurple)
-                StatItem("Country Rank", "#${stats.countryRank?.let { fmt(it) } ?: "-"}", Color(0xFF66DDFF))
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem("Accuracy", "${"%.2f".format(stats.hitAccuracy)}%")
-                StatItem("Play Count", fmt(stats.playCount))
-                StatItem(
-                    "Ranked Score",
-                    when {
-                        stats.rankedScore >= 1_000_000_000L -> "${"%.1f".format(stats.rankedScore / 1e9)}B"
-                        stats.rankedScore >= 1_000_000L -> "${"%.1f".format(stats.rankedScore / 1e6)}M"
-                        else -> fmtL(stats.rankedScore)
-                    }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${fmt(map.favouriteCount)} favs",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem("Max Combo", "${fmt(stats.maximumCombo)}x")
-                StatItem(
-                    "Total Hits",
-                    when {
-                        stats.totalHits >= 1_000_000L -> "${"%.1f".format(stats.totalHits / 1e6)}M"
-                        else -> fmtL(stats.totalHits)
-                    }
-                )
-                StatItem("Replays Seen", fmt(stats.replaysWatchedByOthers))
-            }
         }
     }
 }
 
-@Composable
-private fun StatItem(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = valueColor)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
+// ── Empty state ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun GradeBreakdownCard(ssh: Int, ss: Int, sh: Int, s: Int, a: Int) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
+private fun EmptyTabState() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(48.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Grade Breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                GradeItem("XH", ssh, GradeSSH)
-                GradeItem("X", ss, GradeSS)
-                GradeItem("SH", sh, GradeSH)
-                GradeItem("S", s, GradeS)
-                GradeItem("A", a, GradeA)
-            }
-        }
-    }
-}
-
-@Composable
-private fun GradeItem(grade: String, count: Int, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(color.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(grade, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = color)
-        }
         Text(
-            text = NumberFormat.getNumberInstance(Locale.US).format(count),
-            style = MaterialTheme.typography.bodySmall,
+            "nothing here yet",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
 
-private fun parseColor(hex: String): Color = try {
-    val cleaned = hex.trimStart('#')
-    Color(android.graphics.Color.parseColor("#$cleaned"))
-} catch (_: Exception) {
-    OsuPink
-}
+private fun fmt(n: Int)    = NumberFormat.getNumberInstance(Locale.US).format(n)
+private fun fmtR(n: Int?)  = n?.let { NumberFormat.getNumberInstance(Locale.US).format(it) } ?: "-"

@@ -1,88 +1,84 @@
 package com.osu.client.ui.theme
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
-// ── osu! brand colors ──────────────────────────────────────────────────────────
-val OsuPink = Color(0xFFFF66AA)
-val OsuPinkDark = Color(0xFFCC3377)
-val OsuPinkContainer = Color(0xFF5C0032)
-val OsuPinkLight = Color(0xFFFFB3D1)
+// ── Brand ─────────────────────────────────────────────────────────────────────
+val OsuPink    = Color(0xFFFF66AA)
+val OsuPinkDim = Color(0xFF99335A)
+val OsuPurple  = Color(0xFF9966FF)
+val OsuBlue    = Color(0xFF66CCFF)
+val OsuGold    = Color(0xFFFFCC44)
 
-val OsuPurple = Color(0xFF9966FF)
-val OsuPurpleContainer = Color(0xFF2A0080)
+// ── Grades ────────────────────────────────────────────────────────────────────
+val GradeSSH = Color(0xFFE8E8F8)
+val GradeSS  = Color(0xFFFFDD44)
+val GradeSH  = Color(0xFFCCEEFF)
+val GradeS   = Color(0xFF44DDFF)
+val GradeA   = Color(0xFF66EE66)
+val GradeB   = Color(0xFF6699FF)
+val GradeC   = Color(0xFFAA66FF)
+val GradeD   = Color(0xFFFF4444)
 
-val OsuBackground = Color(0xFF121218)
-val OsuSurface = Color(0xFF1E1E2A)
-val OsuSurfaceVariant = Color(0xFF2A2A3A)
-val OsuOnSurface = Color(0xFFE8E8F0)
-val OsuOutline = Color(0xFF44445A)
-
-// Grade colors
-val GradeSSH = Color(0xFFDDCCFF)
-val GradeSS = Color(0xFFFFD700)
-val GradeSH = Color(0xFFCCCCFF)
-val GradeS = Color(0xFFFFAA00)
-val GradeA = Color(0xFF00CC66)
-val GradeB = Color(0xFF0099FF)
-val GradeC = Color(0xFF9933FF)
-val GradeD = Color(0xFFFF3300)
+// ── Surfaces ──────────────────────────────────────────────────────────────────
+val Surface0 = Color(0xFF0A0A0C)
+val Surface1 = Color(0xFF111114)
+val Surface2 = Color(0xFF1A1A1F)
+val Surface3 = Color(0xFF222228)
+val Surface4 = Color(0xFF2A2A32)
 
 private val DarkColorScheme = darkColorScheme(
-    primary = OsuPink,
-    onPrimary = Color(0xFF1A0012),
-    primaryContainer = OsuPinkContainer,
-    onPrimaryContainer = OsuPinkLight,
-    secondary = OsuPurple,
-    onSecondary = Color(0xFF0D0033),
-    secondaryContainer = OsuPurpleContainer,
-    onSecondaryContainer = Color(0xFFD9BBFF),
-    tertiary = Color(0xFF66DDFF),
-    onTertiary = Color(0xFF003344),
-    background = OsuBackground,
-    onBackground = OsuOnSurface,
-    surface = OsuSurface,
-    onSurface = OsuOnSurface,
-    surfaceVariant = OsuSurfaceVariant,
-    onSurfaceVariant = Color(0xFFAAAAAC),
-    outline = OsuOutline,
-    outlineVariant = Color(0xFF333344),
-    error = Color(0xFFFF6B6B),
-    onError = Color(0xFF1A0000),
-    surfaceTint = OsuPink,
+    primary              = OsuPink,
+    onPrimary            = Color(0xFF1A0010),
+    primaryContainer     = Color(0xFF4A0028),
+    onPrimaryContainer   = Color(0xFFFFD9E6),
+    secondary            = OsuPurple,
+    onSecondary          = Color(0xFF150040),
+    secondaryContainer   = Color(0xFF2D0070),
+    onSecondaryContainer = Color(0xFFE8DAFF),
+    tertiary             = OsuBlue,
+    onTertiary           = Color(0xFF003040),
+    background           = Surface0,
+    onBackground         = Color(0xFFF2F2F6),
+    surface              = Surface1,
+    onSurface            = Color(0xFFEEEEF2),
+    surfaceVariant       = Surface2,
+    onSurfaceVariant     = Color(0xFF9A9AA4),
+    outline              = Color(0xFF33333A),
+    outlineVariant       = Color(0xFF28282E),
+    error                = Color(0xFFFF4455),
+    onError              = Color(0xFF200000),
+    inverseSurface       = Color(0xFFEEEEF2),
+    inverseOnSurface     = Surface0,
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = OsuPinkDark,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFD9E8),
-    onPrimaryContainer = Color(0xFF3E0022),
-    secondary = Color(0xFF7744DD),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE8DDFF),
-    onSecondaryContainer = Color(0xFF2A0066),
-    background = Color(0xFFFFF8FA),
-    onBackground = Color(0xFF1A0010),
-    surface = Color.White,
-    onSurface = Color(0xFF1A0010),
-    surfaceVariant = Color(0xFFF5E0EA),
-    onSurfaceVariant = Color(0xFF4A3040),
-    outline = Color(0xFFAA8899),
+val Typography = Typography(
+    displayLarge  = TextStyle(fontWeight = FontWeight.Black,  fontSize = 57.sp, letterSpacing = (-0.25).sp),
+    displayMedium = TextStyle(fontWeight = FontWeight.Bold,   fontSize = 45.sp),
+    displaySmall  = TextStyle(fontWeight = FontWeight.Bold,   fontSize = 36.sp),
+    headlineLarge = TextStyle(fontWeight = FontWeight.Bold,   fontSize = 32.sp, letterSpacing = (-0.5).sp),
+    headlineMedium= TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 28.sp),
+    headlineSmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 24.sp),
+    titleLarge    = TextStyle(fontWeight = FontWeight.Bold,   fontSize = 22.sp),
+    titleMedium   = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = 0.15.sp),
+    titleSmall    = TextStyle(fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 0.1.sp),
+    bodyLarge     = TextStyle(fontWeight = FontWeight.Normal, fontSize = 16.sp),
+    bodyMedium    = TextStyle(fontWeight = FontWeight.Normal, fontSize = 14.sp),
+    bodySmall     = TextStyle(fontWeight = FontWeight.Normal, fontSize = 12.sp),
+    labelLarge    = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp, letterSpacing = 0.1.sp),
+    labelMedium   = TextStyle(fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.5.sp),
+    labelSmall    = TextStyle(fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.5.sp),
 )
 
 @Composable
-fun OsuClientTheme(
-    darkTheme: Boolean = true, // osu! is dark by default
-    content: @Composable () -> Unit,
-) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
+fun OsuClientTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = OsuTypography,
-        content = content,
+        colorScheme = DarkColorScheme,
+        typography  = Typography,
+        content     = content,
     )
 }
