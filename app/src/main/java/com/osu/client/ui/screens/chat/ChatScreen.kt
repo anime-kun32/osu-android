@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +51,6 @@ fun ChatScreen(
         )
 
         Column(Modifier.fillMaxSize()) {
-            // Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -70,10 +70,7 @@ fun ChatScreen(
             when {
                 uiState.isLoading -> PulseLoader()
                 uiState.channels.isEmpty() -> EmptyChatState(onRefresh = { viewModel.loadChannels() })
-                else -> ChannelList(
-                    channels = uiState.channels,
-                    onClick  = onOpenChannel,
-                )
+                else -> ChannelList(channels = uiState.channels, onClick = onOpenChannel)
             }
         }
     }
@@ -84,21 +81,15 @@ private fun ChannelList(channels: List<ChatChannel>, onClick: (Int, String) -> U
     LazyColumn(
         contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp),
     ) {
-        val pms = channels.filter { it.type == "PM" }
+        val pms    = channels.filter { it.type == "PM" }
         val public = channels.filter { it.type != "PM" }
 
         if (pms.isNotEmpty()) {
             item { SectionLabel(title = "Direct Messages", count = pms.size) }
             itemsIndexed(pms) { index, channel ->
                 var visible by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(index * 50L)
-                    visible = true
-                }
-                AnimatedVisibility(
-                    visible = visible,
-                    enter = fadeIn(tween(280)) + slideInHorizontally(tween(280)) { -20 },
-                ) {
+                LaunchedEffect(Unit) { kotlinx.coroutines.delay(index * 50L); visible = true }
+                AnimatedVisibility(visible = visible, enter = fadeIn(tween(280)) + slideInHorizontally(tween(280)) { -20 }) {
                     ChannelRow(channel = channel, onClick = { onClick(channel.channelId, channel.name) })
                 }
             }
@@ -108,14 +99,8 @@ private fun ChannelList(channels: List<ChatChannel>, onClick: (Int, String) -> U
             item { SectionLabel(title = "Channels", count = public.size) }
             itemsIndexed(public) { index, channel ->
                 var visible by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(index * 50L)
-                    visible = true
-                }
-                AnimatedVisibility(
-                    visible = visible,
-                    enter = fadeIn(tween(280)) + slideInHorizontally(tween(280)) { -20 },
-                ) {
+                LaunchedEffect(Unit) { kotlinx.coroutines.delay(index * 50L); visible = true }
+                AnimatedVisibility(visible = visible, enter = fadeIn(tween(280)) + slideInHorizontally(tween(280)) { -20 }) {
                     ChannelRow(channel = channel, onClick = { onClick(channel.channelId, channel.name) })
                 }
             }
@@ -133,8 +118,11 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 3.dp),
         shape = RoundedCornerShape(14.dp),
-        color = if (hasUnread) Surface2 else Surface1,
-        border = if (hasUnread) BorderStroke(0.5.dp, OsuPink.copy(alpha = 0.3f)) else BorderStroke(0.5.dp, Color.White.copy(alpha = 0.04f)),
+        color  = if (hasUnread) Surface2 else Surface1,
+        border = if (hasUnread)
+            BorderStroke(0.5.dp, OsuPink.copy(alpha = 0.3f))
+        else
+            BorderStroke(0.5.dp, Color.White.copy(alpha = 0.04f)),
     ) {
         Row(
             modifier = Modifier
@@ -142,13 +130,13 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Avatar / icon
             Box(
                 modifier = Modifier
                     .size(46.dp)
+                    .clip(CircleShape)
                     .background(
-                        if (channel.type == "PM") OsuPink.copy(alpha = 0.15f) else OsuPurple.copy(alpha = 0.15f),
-                        CircleShape
+                        if (channel.type == "PM") OsuPink.copy(alpha = 0.15f)
+                        else OsuPurple.copy(alpha = 0.15f)
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -156,9 +144,7 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
                     AsyncImage(
                         model = channel.icon,
                         contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape),
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
                         contentScale = ContentScale.Crop,
                     )
                 } else {
@@ -187,7 +173,10 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
                     Text(
                         lastMsg,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (hasUnread) MaterialTheme.colorScheme.onSurface.copy(0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (hasUnread)
+                            MaterialTheme.colorScheme.onSurface.copy(0.7f)
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -196,11 +185,7 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
 
             if (hasUnread) {
                 Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(OsuPink, CircleShape)
-                )
+                Box(Modifier.size(10.dp).background(OsuPink, CircleShape))
             }
         }
     }
@@ -209,18 +194,17 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
 @Composable
 private fun EmptyChatState(onRefresh: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Icon(
                 Icons.Outlined.Forum,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(56.dp),
             )
-            Text(
-                "No messages yet",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("No messages yet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 "Start a conversation from someone's profile",
                 style = MaterialTheme.typography.bodySmall,
