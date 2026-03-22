@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import com.osu.client.BuildConfig
-import com.osu.client.data.api.OsuApi
+import com.osu.client.data.api.AuthApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +14,7 @@ import javax.inject.Singleton
 @Singleton
 class OAuthManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val osuApi: OsuApi,
+    private val authApi: AuthApi,
     private val tokenManager: TokenManager,
 ) {
     private val _authState = MutableStateFlow(
@@ -22,11 +22,10 @@ class OAuthManager @Inject constructor(
     )
     val authState: StateFlow<AuthState> = _authState
 
-    /** Opens osu! OAuth page in a Chrome Custom Tab. No server needed — Android catches osu://callback */
     fun launchOAuthFlow(context: Context) {
         val authUrl = Uri.parse("https://osu.ppy.sh/oauth/authorize").buildUpon()
-            .appendQueryParameter("client_id", BuildConfig.OSU_CLIENT_ID)
-            .appendQueryParameter("redirect_uri", BuildConfig.OSU_REDIRECT_URI)
+            .appendQueryParameter("client_id",     BuildConfig.OSU_CLIENT_ID)
+            .appendQueryParameter("redirect_uri",  BuildConfig.OSU_REDIRECT_URI)
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("scope", "identify public friends.read chat.read chat.write")
             .build()
@@ -37,19 +36,18 @@ class OAuthManager @Inject constructor(
             .launchUrl(context, authUrl)
     }
 
-    /** Call this from MainActivity when the osu://callback deep link is received */
     suspend fun handleCallback(uri: Uri): Result<Unit> {
         val code = uri.getQueryParameter("code")
             ?: return Result.failure(Exception("No authorization code in callback"))
 
         return try {
-            val token = osuApi.getToken(
-                clientId = BuildConfig.OSU_CLIENT_ID,
+            val token = authApi.getToken(
+                clientId     = BuildConfig.OSU_CLIENT_ID,
                 clientSecret = BuildConfig.OSU_CLIENT_SECRET,
-                code = code,
-                redirectUri = BuildConfig.OSU_REDIRECT_URI,
+                code         = code,
+                redirectUri  = BuildConfig.OSU_REDIRECT_URI,
             )
-            tokenManager.saveTokens(token.accessToken, token.refreshToken, token.expiresIn)
+            tokenManager.saveTokens(token.access_token, token.refresh_token, token.expires_in.toLong())
             _authState.value = AuthState.Authenticated
             Result.success(Unit)
         } catch (e: Exception) {
@@ -60,18 +58,14 @@ class OAuthManager @Inject constructor(
 
     suspend fun refreshIfNeeded(): Boolean {
         if (!tokenManager.isTokenExpired()) return true
-        val refresh = tokenManager.refreshToken ?: run {
-            logout()
-            return false
-        }
+        val refresh = tokenManager.refreshToken ?: run { logout(); return false }
         return try {
-            val token = osuApi.refreshToken(
-                clientId = BuildConfig.OSU_CLIENT_ID,
+            val token = authApi.refreshToken(
+                clientId     = BuildConfig.OSU_CLIENT_ID,
                 clientSecret = BuildConfig.OSU_CLIENT_SECRET,
                 refreshToken = refresh,
-                redirectUri = BuildConfig.OSU_REDIRECT_URI,
             )
-            tokenManager.saveTokens(token.accessToken, token.refreshToken, token.expiresIn)
+            tokenManager.saveTokens(token.access_token, token.refresh_token, token.expires_in.toLong())
             true
         } catch (e: Exception) {
             logout()
@@ -80,7 +74,7 @@ class OAuthManager @Inject constructor(
     }
 
     suspend fun logout() {
-        try { osuApi.revokeToken() } catch (_: Exception) {}
+        try { authApi.revokeToken() } catch (_: Exception) {}
         tokenManager.clearTokens()
         _authState.value = AuthState.Unauthenticated
     }
@@ -88,5 +82,5 @@ class OAuthManager @Inject constructor(
 
 sealed class AuthState {
     object Unauthenticated : AuthState()
-    object Authenticated : AuthState()
+    object Authenticated   : AuthState()
 }
