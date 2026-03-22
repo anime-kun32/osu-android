@@ -2,10 +2,10 @@ package com.osu.client.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.osu.client.auth.TokenManager
 import com.osu.client.data.api.OsuApi
 import com.osu.client.data.api.SendMessageRequest
 import com.osu.client.data.model.ChatMessage
-import com.osu.client.data.repository.TokenRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -27,7 +27,7 @@ data class ChatDetailUiState(
 @HiltViewModel
 class ChatDetailViewModel @Inject constructor(
     private val osuApi: OsuApi,
-    private val tokenRepository: TokenRepository,
+    private val tokenManager: TokenManager,
     private val okHttpClient: OkHttpClient,
 ) : ViewModel() {
 
@@ -50,9 +50,7 @@ class ChatDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = ChatDetailUiState(isLoading = true)
             try {
-                // Get our own user id
                 val me = osuApi.getMe()
-                // Load last 50 messages only — starts fresh, no history flood
                 val messages = osuApi.getChannelMessages(channelId, limit = 50)
                     .sortedBy { it.messageId }
 
@@ -64,25 +62,18 @@ class ChatDetailViewModel @Inject constructor(
                     myUserId  = me.id,
                 )
 
-                // Mark as read
                 lastMessageId?.let { osuApi.markChannelRead(channelId, it) }
-
-                // Connect WebSocket for real-time
                 connectWebSocket()
-                // Start keepAlive (osu! disconnects if you don't ping every 30s)
                 startKeepAlive()
             } catch (e: Exception) {
                 _uiState.value = ChatDetailUiState(isLoading = false, error = e.message)
-                // Fall back to polling if WebSocket fails
                 startPollingFallback()
             }
         }
     }
 
-    // ── WebSocket ─────────────────────────────────────────────────────────────
-
     private fun connectWebSocket() {
-        val token = tokenRepository.accessToken ?: return
+        val token = tokenManager.accessToken ?: return
         val request = Request.Builder()
             .url("wss://notify.ppy.sh")
             .header("Authorization", "Bearer $token")
@@ -103,7 +94,6 @@ class ChatDetailViewModel @Inject constructor(
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 _uiState.update { it.copy(isConnected = false) }
-                // Fall back to polling
                 startPollingFallback()
             }
 
@@ -118,27 +108,21 @@ class ChatDetailViewModel @Inject constructor(
         try {
             val json = JSONObject(text)
             val event = json.optString("event")
-            // osu! sends "chat.message.new" events
             if (event == "chat.message.new" || json.has("messages")) {
-                // Fetch new messages since last known
                 fetchNewMessages()
             }
         } catch (_: Exception) {}
     }
 
-    // ── keepAlive polling (required by osu! API or you get kicked) ──────────
-
     private fun startKeepAlive() {
         keepAliveJob?.cancel()
         keepAliveJob = viewModelScope.launch {
             while (isActive) {
-                delay(25_000L) // every 25s (osu! requires < 30s)
+                delay(25_000L)
                 try { osuApi.keepChatAlive() } catch (_: Exception) {}
             }
         }
     }
-
-    // ── Polling fallback (5s interval when WebSocket unavailable) ────────────
 
     private fun startPollingFallback() {
         if (pollJob?.isActive == true) return
@@ -171,8 +155,6 @@ class ChatDetailViewModel @Inject constructor(
         } catch (_: Exception) {}
     }
 
-    // ── Send ──────────────────────────────────────────────────────────────────
-
     fun sendMessage(text: String) {
         if (text.isBlank() || channelId == -1) return
         viewModelScope.launch {
@@ -180,7 +162,10 @@ class ChatDetailViewModel @Inject constructor(
             try {
                 val sent = osuApi.sendMessage(
                     channelId = channelId,
-                    body      = SendMessageRequest(message = text, uuid = UUID.randomUUID().toString()),
+                    body      = SendMessageRequest(
+                        message = text,
+                        uuid    = UUID.randomUUID().toString(),
+                    ),
                 )
                 _uiState.update { state ->
                     val existing = state.messages.map { it.messageId }.toSet()
