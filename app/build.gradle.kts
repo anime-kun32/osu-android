@@ -8,11 +8,15 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Load local signing config if available (for local dev)
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) load(f.inputStream())
 }
+
+// Version bumps automatically on every CI build via github.run_number
+// Falls back to 1 / "1.0.0-local" when building locally
+val ciVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+val ciVersionName = System.getenv("VERSION_NAME") ?: "1.0.0-local"
 
 android {
     namespace = "com.osu.client"
@@ -22,8 +26,8 @@ android {
         applicationId = "com.osu.client"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = ciVersionCode
+        versionName = ciVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
