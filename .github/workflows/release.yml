@@ -32,7 +32,6 @@ jobs:
           if [ "$SIZE" -lt "$MIN_SIZE" ]; then
             echo "gradle-wrapper.jar missing, downloading..."
             python3 -c "import urllib.request,os,sys; url='https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar'; dest='gradle/wrapper/gradle-wrapper.jar'; os.makedirs('gradle/wrapper',exist_ok=True); urllib.request.urlretrieve(url,dest); size=os.path.getsize(dest); print('Downloaded '+str(size)+' bytes'); sys.exit(0 if size>50000 else 1)"
-            echo "Download complete"
           else
             echo "gradle-wrapper.jar OK, size $SIZE bytes"
           fi
@@ -44,13 +43,33 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --info 2>&1 | tee build.log; grep -E "^e:|error:|unresolved reference|cannot find symbol|NonExistentClass|not found" build.log | head -80; exit ${PIPESTATUS[0]}
         env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+          OSU_CLIENT_ID: ${{ secrets.OSU_CLIENT_ID }}
+          OSU_CLIENT_SECRET: ${{ secrets.OSU_CLIENT_SECRET }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: "1.0.${{ github.run_number }}"
 
-      - name: Upload APK artifact
+      - name: Upload full build log on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: osu-client-debug
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          name: build-log
+          path: build.log
+          retention-days: 3
+
+      - name: Rename APK with version
+        if: success()
+        run: |
+          mkdir -p renamed
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             renamed/osu-client-v1.0.${{ github.run_number }}-debug.apk
+
+      - name: Upload APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osu-client-v1.0.${{ github.run_number }}-debug
+          path: renamed/*.apk
+          retention-days: 14
